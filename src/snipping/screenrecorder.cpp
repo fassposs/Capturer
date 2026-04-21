@@ -11,6 +11,7 @@
 #include <fmt/core.h>
 #include <QDateTime>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QStandardPaths>
 #include <QTimer>
 
@@ -97,10 +98,16 @@ ScreenRecorder::ScreenRecorder(const int type, QWidget *parent)
     // stop
     connect(selector_, &Selector::stopped, this, &ScreenRecorder::stop);
 
-    // update time of the menu
+    // update time on the recording menu
     timer_ = new QTimer(this);
     connect(timer_, &QTimer::timeout, [this] {
         if (dispatcher_) menu_->time(av::clock::s(dispatcher_->escaped()));
+    });
+
+    // global mouse hook — triggers click ripple animation during recording
+    mouse_monitor_ = std::make_unique<MouseClickMonitor>([this](QPoint globalPos) {
+        if (!recording_) return;
+        selector_->addClickAnimation(selector_->mapFromGlobal(globalPos));
     });
 }
 
@@ -126,8 +133,6 @@ constexpr auto GIF_FILTERS =
 
 void ScreenRecorder::start()
 {
-    recording_ = true;
-
     filename_ = "Capturer_" + QDateTime::currentDateTime().toString("yyyy-MM-dd_hhmmss_zzz").toStdString();
     if (rec_type_ == VIDEO) {
         pix_fmt_                  = config::recording::video::v::pix_fmt;
@@ -191,16 +196,17 @@ void ScreenRecorder::setup()
         break;
     }
 
-    desktop_src_->show_region ? selector_->showRegion() : hide();
+    recording_ = true;
 
-    TransparentInput(this, true);
+    if (desktop_src_->show_region) {
+        selector_->showRegion();
+    } else {
+        hide();
+    }
 
     std::string name{};
 
 #ifdef __linux__
-    // https://askubuntu.com/questions/432255/what-is-the-display-environment-variable/432257#432257
-    // echo $DISPLAY
-    // hostname:D.S means screen S on display D of host hostname;
     name                      = fmt::format("{}.0", getenv("DISPLAY"));
     desktop_src_->level       = CAPTURE_DESKTOP;
     desktop_src_->left        = region.x();
@@ -208,12 +214,6 @@ void ScreenRecorder::setup()
     desktop_src_->vfmt.width  = region.width();
     desktop_src_->vfmt.height = region.height();
 #elif _WIN32
-    // TODO:
-    //   1. rectangle mode: OK, use display mode
-    //   2. widget    mode: NO, use display mode
-    //   3. window    mode: OK
-    //   4. display   mode: OK
-    //   5. desktop   mode: NO, not supported
     switch (selector_->prey().type) {
     case hunter::prey_type_t::rectangle:
     case hunter::prey_type_t::widget:    {
@@ -245,7 +245,6 @@ void ScreenRecorder::setup()
     // video source
     if (desktop_src_->open(name, {}) < 0) {
         Message::error(tr("Could not capture the given window"));
-        loge("[RECORDER] failed to open the desktop capturer: {}", name);
         desktop_src_ = std::make_unique<DesktopCapturer>();
         stop();
         return;
@@ -297,7 +296,6 @@ void ScreenRecorder::setup()
 
     // dispatcher
     dispatcher_->set_hwaccel(hwaccel);
-    // TODO: the amix may not be closed with duration=longest
     const auto afilters = nb_ainputs > 1 ? fmt::format("amix=inputs={}:duration=first", nb_ainputs) : "";
     if (dispatcher_->initialize(filters_, afilters) < 0) {
         loge("create filters failed");
@@ -327,6 +325,9 @@ void ScreenRecorder::setup()
         return;
     }
 
+    // install global mouse hook to capture clicks for ripple animation
+    mouse_monitor_->install();
+
     if ((rec_type_ == VIDEO && config::recording::video::floating_menu) ||
         (rec_type_ == GIF && config::recording::gif::floating_menu))
         menu_->start();
@@ -335,6 +336,8 @@ void ScreenRecorder::setup()
 
 void ScreenRecorder::stop()
 {
+    mouse_monitor_->uninstall();
+
     selector_->close();
     menu_->close();
 
@@ -364,6 +367,10 @@ void ScreenRecorder::keyPressEvent(QKeyEvent *event)
         setup();
     }
 }
+
+void ScreenRecorder::mousePressEvent(QMouseEvent *event) { QWidget::mousePressEvent(event); }
+
+void ScreenRecorder::paintEvent(QPaintEvent *event) { QWidget::paintEvent(event); }
 
 void ScreenRecorder::setStyle(const SelectorStyle& style)
 {

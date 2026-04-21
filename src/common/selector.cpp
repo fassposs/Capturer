@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QMouseEvent>
 #include <QShortcut>
+#include <QTimer>
 
 Selector::Selector(QWidget *parent)
     : QWidget(parent)
@@ -20,6 +21,10 @@ Selector::Selector(QWidget *parent)
 
     connect(this, &Selector::moved, [this]() { update(); });
     connect(this, &Selector::resized, [this]() { update(); });
+
+    // 初始化点击动画定时器
+    animationTimer_ = new QTimer(this);
+    connect(animationTimer_, &QTimer::timeout, this, &Selector::updateClickAnimations);
 
     registerShortcuts();
 
@@ -66,6 +71,16 @@ void Selector::start(const probe::graphics::window_filter_t flags)
 void Selector::mousePressEvent(QMouseEvent *event)
 {
     auto pos = event->globalPosition().toPoint();
+
+    // 如果处于LOCKED状态(录制中)，处理点击动画
+    if (status_ == SelectorStatus::LOCKED) {
+        if (event->button() == Qt::LeftButton) {
+            logi("[SELECTOR] Left click detected at ({}, {}), adding click animation", pos.x(), pos.y());
+            addClickAnimation(pos);
+        }
+        // 录制状态下不传递事件给父窗口，直接返回
+        return;
+    }
 
     if (event->button() == Qt::LeftButton && status_ != SelectorStatus::LOCKED) {
         cursor_pos_ = box_.absolutePos(pos);
@@ -335,6 +350,12 @@ void Selector::paintEvent(QPaintEvent *)
     }
 
     painter_.end();
+
+    // 绘制点击动画
+    if (!clickAnimations_.empty()) {
+        QPainter animPainter(this);
+        drawClickAnimations(animPainter);
+    }
 }
 
 void Selector::select(const hunter::prey_t& prey)
@@ -467,4 +488,99 @@ void Selector::showRegion()
     mask_hidden_ = true;
 
     repaint();
+}
+
+void Selector::addClickAnimation(const QPoint& pos)
+{
+    logi("[SELECTOR] addClickAnimation at ({}, {})", pos.x(), pos.y());
+
+    ClickAnimation anim;
+    anim.pos = pos;
+    anim.radius = 5;
+    anim.maxRadius = 50;
+    anim.alpha = 255;
+    anim.color = QColor(255, 0, 0);  // 红色
+    anim.active = true;
+    clickAnimations_.push_back(anim);
+
+    logi("[SELECTOR] Animation added, total: {}", clickAnimations_.size());
+
+    // 启动定时器
+    if (!animationTimer_->isActive()) {
+        animationTimer_->start(30);  // 30ms更新一次
+        logi("[SELECTOR] Animation timer started");
+    }
+
+    update();
+}
+
+void Selector::updateClickAnimations()
+{
+    bool needsUpdate = false;
+
+    for (auto& anim : clickAnimations_) {
+        if (anim.active) {
+            anim.radius += 3;
+            anim.alpha = std::max(0, 255 - (anim.radius * 255 / anim.maxRadius));
+
+            if (anim.radius >= anim.maxRadius || anim.alpha <= 0) {
+                anim.active = false;
+            } else {
+                needsUpdate = true;
+            }
+        }
+    }
+
+    // 移除不活跃的动画
+    clickAnimations_.erase(
+        std::remove_if(clickAnimations_.begin(), clickAnimations_.end(),
+            [](const ClickAnimation& a) { return !a.active; }),
+        clickAnimations_.end()
+    );
+
+    // 如果没有活跃动画，停止定时器
+    if (clickAnimations_.empty() && animationTimer_->isActive()) {
+        animationTimer_->stop();
+        logi("[SELECTOR] Animation timer stopped, all animations finished");
+    }
+
+    if (needsUpdate || !clickAnimations_.empty()) {
+        update();
+    }
+}
+
+void Selector::drawClickAnimations(QPainter& painter)
+{
+    if (clickAnimations_.empty()) return;
+
+    logi("[SELECTOR] Drawing {} click animations", clickAnimations_.size());
+
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    for (const auto& anim : clickAnimations_) {
+        if (!anim.active) continue;
+
+        QColor color = anim.color;
+        color.setAlpha(anim.alpha);
+
+        QPen pen(color, 4);
+        pen.setCapStyle(Qt::RoundCap);
+        pen.setJoinStyle(Qt::RoundJoin);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+
+        // 绘制扩展圆圈
+        painter.drawEllipse(anim.pos, anim.radius, anim.radius);
+
+        // 绘制内部发光
+        QColor innerColor = anim.color;
+        innerColor.setAlpha(anim.alpha / 2);
+        painter.setPen(QPen(innerColor, 2));
+        painter.drawEllipse(anim.pos, static_cast<int>(anim.radius * 0.7), static_cast<int>(anim.radius * 0.7));
+
+        // 绘制中心点
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(color);
+        painter.drawEllipse(anim.pos, 3, 3);
+    }
 }

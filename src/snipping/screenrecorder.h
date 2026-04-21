@@ -5,6 +5,7 @@
 #include "libcap/dispatcher.h"
 #include "libcap/screen-capturer.h"
 #include "menu/recording-menu.h"
+#include "mouseclickmonitor.h"
 #include "selector.h"
 
 class QTimer;
@@ -35,8 +36,12 @@ public slots:
 
     void setStyle(const SelectorStyle& style);
 
-private:
+protected:
     void keyPressEvent(QKeyEvent *) override;
+    void mousePressEvent(QMouseEvent *) override;
+    void paintEvent(QPaintEvent *) override;
+
+private:
 
     void setup();
 
@@ -73,6 +78,9 @@ private:
 
     // timer for displaying time on recording menu
     QTimer *timer_{ nullptr };
+
+    // global mouse hook for click animation during recording
+    std::unique_ptr<MouseClickMonitor> mouse_monitor_{};
 };
 
 #endif //! CAPTURER_SCREEN_RECORDER_H

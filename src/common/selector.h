@@ -7,9 +7,21 @@
 
 #include <probe/graphics.h>
 #include <QPainter>
+#include <QTimer>
 #include <QWidget>
+#include <vector>
 
 class QLabel;
+
+// 点击动画结构体
+struct ClickAnimation {
+    QPoint pos;
+    int radius{ 0 };
+    int maxRadius{ 40 };
+    int alpha{ 255 };
+    QColor color{ Qt::red };
+    bool active{ false };
+};
 
 enum class SelectorStatus
 {
@@ -96,6 +108,11 @@ public slots:
 
     void showRegion();
 
+    // 点击动画相关
+    void addClickAnimation(const QPoint& pos);
+    void updateClickAnimations();
+    void drawClickAnimations(QPainter& painter);
+
 signals:
     void selecting();
     void captured();
@@ -154,6 +171,10 @@ private:
     QSize min_size_{ 2, 2 };
 
     bool crosshair_{};
+
+    // 点击动画
+    std::vector<ClickAnimation> clickAnimations_;
+    QTimer *animationTimer_{ nullptr };
 };
 
 #endif //! CAPTURER_SELECTOR_H
