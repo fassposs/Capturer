@@ -58,8 +58,15 @@ Capturer::Capturer(int& argc, char **argv)
     gif_hotkey_         = new QHotkey(this);
     quicklook_hotkey_   = new QHotkey(this);
     transparent_input_  = new QHotkey(this);
+    annotate_draw_      = new QHotkey(this);
+    annotate_text_      = new QHotkey(this);
+    annotate_clear_     = new QHotkey(this);
 
     sniper_.reset(new ScreenShoter());
+
+    // 教鞭 annotator（全局唯一）
+    annotator_ = new ScreenAnnotator();
+    annotator_->setAttribute(Qt::WA_DeleteOnClose, false);
 
     connect(snip_hotkey_, &QHotkey::activated, sniper_.get(), &ScreenShoter::start);
     connect(repeat_snip_hotkey_, &QHotkey::activated, sniper_.get(), &ScreenShoter::repeat);
@@ -70,6 +77,12 @@ Capturer::Capturer(int& argc, char **argv)
     connect(quicklook_hotkey_, &QHotkey::activated, this, &Capturer::QuickLook);
     connect(transparent_input_, &QHotkey::activated, this, &Capturer::TransparentPreviewInput);
     connect(sniper_.get(), &ScreenShoter::pinData, this, &Capturer::PreviewMimeData);
+
+    // 教鞭快捷键：按住涂鸦，松开停止
+    connect(annotate_draw_,  &QHotkey::activated,  this, &Capturer::AnnotateDrawPress);
+    connect(annotate_draw_,  &QHotkey::released,   this, &Capturer::AnnotateDrawRelease);
+    connect(annotate_text_,  &QHotkey::activated,  this, &Capturer::AnnotateTextToggle);
+    connect(annotate_clear_, &QHotkey::activated,  this, &Capturer::AnnotateClear);
 }
 
 void Capturer::RecordVideo()
@@ -302,6 +315,9 @@ void Capturer::UpdateHotkeys()
     SET_HOTKEY(quicklook_hotkey_,   config::hotkeys::quick_look);
 #endif
     SET_HOTKEY(transparent_input_,  config::hotkeys::transparent_input);
+    SET_HOTKEY(annotate_draw_,      config::hotkeys::annotate_draw);
+    SET_HOTKEY(annotate_text_,      config::hotkeys::annotate_text);
+    SET_HOTKEY(annotate_clear_,     config::hotkeys::annotate_clear);
     // clang-format on
     if (!error.isEmpty()) ShowMessage("Capturer", error, QSystemTrayIcon::Critical);
 }
@@ -361,4 +377,34 @@ void Capturer::SetTheme(const QString& theme)
 void Capturer::UpdateScreenshotStyle()
 {
     if (sniper_) sniper_->setStyle(config::snip::style);
+}
+
+void Capturer::AnnotateDrawPress()
+{
+    logi("[capturer] AnnotateDrawPress, annotator={}", annotator_ ? "ok" : "null");
+    if (!annotator_) return;
+    annotator_->setPenColor(config::annotator::pen_color);
+    annotator_->setPenWidth(config::annotator::pen_width);
+    annotator_->enterDrawMode();
+}
+
+void Capturer::AnnotateDrawRelease()
+{
+    logi("[capturer] AnnotateDrawRelease, annotator={}", annotator_ ? "ok" : "null");
+    if (annotator_) annotator_->leaveDrawMode();
+}
+
+void Capturer::AnnotateTextToggle()
+{
+    logi("[capturer] AnnotateTextToggle, annotator={}", annotator_ ? "ok" : "null");
+    if (!annotator_) return;
+    annotator_->setTextColor(config::annotator::text_color);
+    annotator_->setFontSize(config::annotator::font_size);
+    annotator_->toggleTextMode();
+}
+
+void Capturer::AnnotateClear()
+{
+    logi("[capturer] AnnotateClear");
+    if (annotator_) annotator_->clearAll();
 }

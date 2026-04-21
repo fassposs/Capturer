@@ -17,6 +17,7 @@ private:
     QWidget *setupGIFWidget();
     QWidget *setupDevicesWidget();
     QWidget *setupHotkeyWidget();
+    QWidget *setupAnnotatorWidget();
     QWidget *setupAboutWidget();
 };
 

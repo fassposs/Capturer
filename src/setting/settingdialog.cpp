@@ -52,6 +52,7 @@ SettingWindow::SettingWindow(QWidget *parent)
         menu->addItem(tr("Video Recording"));
         menu->addItem(tr("GIF Recording"));
         menu->addItem(tr("Devices"));
+        menu->addItem(tr("Annotator"));
         menu->addItem(tr("About"));
         menu->setMinimumWidth(250);
         menu->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
@@ -76,6 +77,7 @@ SettingWindow::SettingWindow(QWidget *parent)
             pages->addWidget(setupRecordWidget());
             pages->addWidget(setupGIFWidget());
             pages->addWidget(setupDevicesWidget());
+            pages->addWidget(setupAnnotatorWidget());
             pages->addWidget(setupAboutWidget());
 
             vlayout->addWidget(pages);
@@ -172,6 +174,9 @@ QWidget *SettingWindow::setupHotkeyWidget()
         updateHotkey(tr("Transparent Input"), config::hotkeys::transparent_input);
         updateHotkey(tr("Video Recording"), config::hotkeys::record_video);
         updateHotkey(tr("Gif Recording"), config::hotkeys::record_gif);
+        updateHotkey(tr("Annotate Draw (hold)"), config::hotkeys::annotate_draw);
+        updateHotkey(tr("Annotate Text (toggle)"), config::hotkeys::annotate_text);
+        updateHotkey(tr("Annotate Clear All"), config::hotkeys::annotate_clear);
     }
 
     page->addSpacer();
@@ -670,5 +675,45 @@ QWidget *SettingWindow::setupAboutWidget()
     }
     page->setLayout(vlayout);
 
+    return page;
+}
+
+QWidget *SettingWindow::setupAnnotatorWidget()
+{
+    using namespace config::annotator;
+
+    const auto page = new ScrollWidget();
+    {
+        const auto form = page->addForm(tr("Drawing"));
+
+        const auto penColor = new ColorDialogButton(pen_color);
+        connect(penColor, &ColorDialogButton::changed, [](const QColor& c) { config::annotator::pen_color = c; });
+        form->addRow(LABEL(tr("Pen Color"), 175), penColor);
+
+        const auto penWidth = new QSpinBox();
+        penWidth->setRange(1, 30);
+        penWidth->setValue(pen_width);
+        penWidth->setContextMenuPolicy(Qt::NoContextMenu);
+        connect(penWidth, QOverload<int>::of(&QSpinBox::valueChanged),
+                [](int v) { config::annotator::pen_width = v; });
+        form->addRow(LABEL(tr("Pen Width"), 175), penWidth);
+    }
+    {
+        const auto form = page->addForm(tr("Text Annotation"));
+
+        const auto textColor = new ColorDialogButton(text_color);
+        connect(textColor, &ColorDialogButton::changed, [](const QColor& c) { config::annotator::text_color = c; });
+        form->addRow(LABEL(tr("Text Color"), 175), textColor);
+
+        const auto fontSize = new QSpinBox();
+        fontSize->setRange(8, 72);
+        fontSize->setValue(font_size);
+        fontSize->setContextMenuPolicy(Qt::NoContextMenu);
+        connect(fontSize, QOverload<int>::of(&QSpinBox::valueChanged),
+                [](int v) { config::annotator::font_size = v; });
+        form->addRow(LABEL(tr("Font Size"), 175), fontSize);
+    }
+
+    page->addSpacer();
     return page;
 }

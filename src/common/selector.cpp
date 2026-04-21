@@ -75,10 +75,8 @@ void Selector::mousePressEvent(QMouseEvent *event)
     // 如果处于LOCKED状态(录制中)，处理点击动画
     if (status_ == SelectorStatus::LOCKED) {
         if (event->button() == Qt::LeftButton) {
-            logi("[SELECTOR] Left click detected at ({}, {}), adding click animation", pos.x(), pos.y());
             addClickAnimation(pos);
         }
-        // 录制状态下不传递事件给父窗口，直接返回
         return;
     }
 
@@ -352,9 +350,27 @@ void Selector::paintEvent(QPaintEvent *)
     painter_.end();
 
     // 绘制点击动画
-    if (!clickAnimations_.empty()) {
+    if (!clickAnimations_.empty() || !pendingClearRect_.isNull()) {
         QPainter animPainter(this);
-        drawClickAnimations(animPainter);
+        animPainter.setCompositionMode(QPainter::CompositionMode_Clear);
+
+        // 清除动画结束后遗留的像素
+        if (!pendingClearRect_.isNull()) {
+            animPainter.fillRect(pendingClearRect_, Qt::transparent);
+            pendingClearRect_ = QRect{};
+        }
+
+        // 清除当前帧动画区域的旧像素
+        for (const auto& anim : clickAnimations_) {
+            const int pad = anim.maxRadius + 4;
+            animPainter.fillRect(anim.pos.x() - pad, anim.pos.y() - pad, pad * 2, pad * 2,
+                                 Qt::transparent);
+        }
+
+        if (!clickAnimations_.empty()) {
+            animPainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+            drawClickAnimations(animPainter);
+        }
     }
 }
 
@@ -492,68 +508,61 @@ void Selector::showRegion()
 
 void Selector::addClickAnimation(const QPoint& pos)
 {
-    logi("[SELECTOR] addClickAnimation at ({}, {})", pos.x(), pos.y());
-
     ClickAnimation anim;
-    anim.pos = pos;
-    anim.radius = 5;
+    anim.pos       = pos;
+    anim.radius    = 5;
     anim.maxRadius = 50;
-    anim.alpha = 255;
-    anim.color = QColor(255, 0, 0);  // 红色
-    anim.active = true;
+    anim.alpha     = 255;
+    anim.color     = QColor(255, 0, 0);
+    anim.active    = true;
     clickAnimations_.push_back(anim);
 
-    logi("[SELECTOR] Animation added, total: {}", clickAnimations_.size());
-
-    // 启动定时器
     if (!animationTimer_->isActive()) {
-        animationTimer_->start(30);  // 30ms更新一次
-        logi("[SELECTOR] Animation timer started");
+        animationTimer_->start(30);
     }
 
-    update();
+    // 只刷新动画覆盖的小区域
+    const int pad = anim.maxRadius + 4;
+    update(QRect(pos.x() - pad, pos.y() - pad, pad * 2, pad * 2));
 }
 
 void Selector::updateClickAnimations()
 {
-    bool needsUpdate = false;
+    // 计算本帧所有动画的脏区域，仅局部刷新
+    QRect dirtyRect;
 
-    for (auto& anim : clickAnimations_) {
-        if (anim.active) {
-            anim.radius += 3;
-            anim.alpha = std::max(0, 255 - (anim.radius * 255 / anim.maxRadius));
+    auto it = clickAnimations_.begin();
+    while (it != clickAnimations_.end()) {
 
-            if (anim.radius >= anim.maxRadius || anim.alpha <= 0) {
-                anim.active = false;
-            } else {
-                needsUpdate = true;
-            }
+        it->radius += 3;
+        it->alpha   = std::max(0, 255 - (it->radius * 255 / it->maxRadius));
+
+        if (it->radius >= it->maxRadius || it->alpha <= 0) {
+            // 动画结束：记录最终区域待清除，触发最后一次 repaint
+            const int pad = it->maxRadius + 4;
+            pendingClearRect_ |= QRect(it->pos.x() - pad, it->pos.y() - pad, pad * 2, pad * 2);
+            dirtyRect |= pendingClearRect_;
+            it = clickAnimations_.erase(it);
+        }
+        else {
+            const int pad = it->radius + 4;
+            dirtyRect |= QRect(it->pos.x() - pad, it->pos.y() - pad, pad * 2, pad * 2);
+            ++it;
         }
     }
 
-    // 移除不活跃的动画
-    clickAnimations_.erase(
-        std::remove_if(clickAnimations_.begin(), clickAnimations_.end(),
-            [](const ClickAnimation& a) { return !a.active; }),
-        clickAnimations_.end()
-    );
-
-    // 如果没有活跃动画，停止定时器
-    if (clickAnimations_.empty() && animationTimer_->isActive()) {
+    if (clickAnimations_.empty()) {
         animationTimer_->stop();
-        logi("[SELECTOR] Animation timer stopped, all animations finished");
     }
 
-    if (needsUpdate || !clickAnimations_.empty()) {
-        update();
+    if (!dirtyRect.isEmpty()) {
+        update(dirtyRect);
     }
 }
 
 void Selector::drawClickAnimations(QPainter& painter)
 {
     if (clickAnimations_.empty()) return;
-
-    logi("[SELECTOR] Drawing {} click animations", clickAnimations_.size());
 
     painter.setRenderHint(QPainter::Antialiasing);
 
@@ -563,22 +572,19 @@ void Selector::drawClickAnimations(QPainter& painter)
         QColor color = anim.color;
         color.setAlpha(anim.alpha);
 
-        QPen pen(color, 4);
-        pen.setCapStyle(Qt::RoundCap);
-        pen.setJoinStyle(Qt::RoundJoin);
-        painter.setPen(pen);
+        // 外圆
+        painter.setPen(QPen(color, 4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         painter.setBrush(Qt::NoBrush);
-
-        // 绘制扩展圆圈
         painter.drawEllipse(anim.pos, anim.radius, anim.radius);
 
-        // 绘制内部发光
-        QColor innerColor = anim.color;
-        innerColor.setAlpha(anim.alpha / 2);
-        painter.setPen(QPen(innerColor, 2));
-        painter.drawEllipse(anim.pos, static_cast<int>(anim.radius * 0.7), static_cast<int>(anim.radius * 0.7));
+        // 内圆
+        QColor inner = anim.color;
+        inner.setAlpha(anim.alpha / 2);
+        painter.setPen(QPen(inner, 2));
+        painter.drawEllipse(anim.pos, static_cast<int>(anim.radius * 0.7),
+                            static_cast<int>(anim.radius * 0.7));
 
-        // 绘制中心点
+        // 中心点
         painter.setPen(Qt::NoPen);
         painter.setBrush(color);
         painter.drawEllipse(anim.pos, 3, 3);

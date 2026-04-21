@@ -175,6 +175,7 @@ private:
     // 点击动画
     std::vector<ClickAnimation> clickAnimations_;
     QTimer *animationTimer_{ nullptr };
+    QRect   pendingClearRect_{};  // 动画结束后需要强制清除的区域
 };
 
 #endif //! CAPTURER_SELECTOR_H

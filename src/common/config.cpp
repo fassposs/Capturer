@@ -30,6 +30,9 @@ namespace config
             JSON_GET(hotkeys::record_video, j["hotkeys"], "record-video");
             JSON_GET(hotkeys::record_gif, j["hotkeys"], "record-gif");
             JSON_GET(hotkeys::transparent_input, j["hotkeys"], "transparent-input");
+            JSON_GET(hotkeys::annotate_draw,     j["hotkeys"], "annotate-draw");
+            JSON_GET(hotkeys::annotate_text,     j["hotkeys"], "annotate-text");
+            JSON_GET(hotkeys::annotate_clear,    j["hotkeys"], "annotate-clear");
         }
 
         if (j.contains("snip")) {
@@ -106,6 +109,13 @@ namespace config
                 JSON_GET(dither, j["recording"]["gif"], "dither");
             }
         }
+
+        if (j.contains("annotator")) {
+            JSON_GET(annotator::pen_color,  j["annotator"], "pen-color");
+            JSON_GET(annotator::pen_width,  j["annotator"], "pen-width");
+            JSON_GET(annotator::text_color, j["annotator"], "text-color");
+            JSON_GET(annotator::font_size,  j["annotator"], "font-size");
+        }
     }
 
     json to_json()
@@ -125,6 +135,9 @@ namespace config
                     { "record-video", hotkeys::record_video },
                     { "record-gif", hotkeys::record_gif },
                     { "transparent-input", hotkeys::transparent_input },
+                    { "annotate-draw",     hotkeys::annotate_draw },
+                    { "annotate-text",     hotkeys::annotate_text },
+                    { "annotate-clear",    hotkeys::annotate_clear },
                 },
 
             },
@@ -217,6 +230,15 @@ namespace config
                             { "dither", recording::gif::dither },
                         },
                     },
+                },
+            },
+            {
+                "annotator",
+                {
+                    { "pen-color",  annotator::pen_color  },
+                    { "pen-width",  annotator::pen_width  },
+                    { "text-color", annotator::text_color },
+                    { "font-size",  annotator::font_size  },
                 },
             },
         };

@@ -23,7 +23,18 @@ namespace config
         inline QKeySequence record_video{ "Ctrl+Alt+V" };
         inline QKeySequence record_gif{ "Ctrl+Alt+G" };
         inline QKeySequence transparent_input{ "Ctrl+T" };
+        inline QKeySequence annotate_draw{ "F4" };   // 按住涂鸦
+        inline QKeySequence annotate_text{ "F5" };   // 切换文字标注
+        inline QKeySequence annotate_clear{ "Ctrl+Shift+Delete" }; // 清除全部
     } // namespace hotkeys
+
+    namespace annotator
+    {
+        inline QColor pen_color{ Qt::red };
+        inline int    pen_width{ 3 };
+        inline QColor text_color{ Qt::red };
+        inline int    font_size{ 18 };
+    } // namespace annotator
 
     namespace snip
     {

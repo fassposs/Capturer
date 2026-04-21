@@ -211,6 +211,10 @@
         <translation></translation>
     </message>
     <message>
+        <source>Annotator</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>About</source>
         <translation></translation>
     </message>
@@ -243,6 +247,18 @@
         <translation></translation>
     </message>
     <message>
+        <source>Annotate Draw (hold)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Annotate Text (toggle)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Annotate Clear All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Border Width</source>
         <translation></translation>
     </message>
@@ -261,6 +277,30 @@
     <message>
         <source>Framerate</source>
         <translation></translation>
+    </message>
+    <message>
+        <source>Drawing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pen Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pen Width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text Annotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Font Size</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Software x264 [H.264 / AVC]</source>

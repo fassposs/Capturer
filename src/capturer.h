@@ -4,6 +4,7 @@
 #include "camera-player.h"
 #include "framelesswindow.h"
 #include "menu.h"
+#include "screenannotator.h"
 #include "screenrecorder.h"
 #include "screenshoter.h"
 #include "settingdialog.h"
@@ -49,6 +50,11 @@ public slots:
     void RecordVideo();
     void RecordGIF();
 
+    void AnnotateDrawPress();
+    void AnnotateDrawRelease();
+    void AnnotateTextToggle();
+    void AnnotateClear();
+
 private:
     void SystemTrayInit();
 
@@ -77,11 +83,15 @@ private:
     QPointer<QHotkey> quicklook_hotkey_{};   // Explorer window, Windows only
     QPointer<QHotkey> transparent_input_{};  // for preview window
     QPointer<QHotkey> toggle_hotkey_{};      // toggle previews
+    QPointer<QHotkey> annotate_draw_{};      // draw mode (hold)
+    QPointer<QHotkey> annotate_text_{};      // text mode toggle
+    QPointer<QHotkey> annotate_clear_{};     // clear all annotations
 
-    QScopedPointer<ScreenShoter> sniper_{};
-    QPointer<ScreenRecorder>     recorder_{};
-    QPointer<ScreenRecorder>     gifcptr_{};
-    QPointer<CameraPlayer>       camera_{};
+    QScopedPointer<ScreenShoter>  sniper_{};
+    QPointer<ScreenRecorder>      recorder_{};
+    QPointer<ScreenRecorder>      gifcptr_{};
+    QPointer<CameraPlayer>        camera_{};
+    QPointer<ScreenAnnotator>     annotator_{};
 
     std::list<QPointer<FramelessWindow>> previews_{};
 };

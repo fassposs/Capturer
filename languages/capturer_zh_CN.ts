@@ -211,6 +211,10 @@
         <translation>设备</translation>
     </message>
     <message>
+        <source>Annotator</source>
+        <translation>教鞭</translation>
+    </message>
+    <message>
         <source>About</source>
         <translation>关于</translation>
     </message>
@@ -243,6 +247,18 @@
         <translation>主题</translation>
     </message>
     <message>
+        <source>Annotate Draw (hold)</source>
+        <translation>教鞭涂鸦（按住）</translation>
+    </message>
+    <message>
+        <source>Annotate Text (toggle)</source>
+        <translation>教鞭文字（切换）</translation>
+    </message>
+    <message>
+        <source>Annotate Clear All</source>
+        <translation>清除全部教鞭内容</translation>
+    </message>
+    <message>
         <source>Border Width</source>
         <translation>边框宽度</translation>
     </message>
@@ -261,6 +277,30 @@
     <message>
         <source>Framerate</source>
         <translation>帧率</translation>
+    </message>
+    <message>
+        <source>Drawing</source>
+        <translation>涂鸦</translation>
+    </message>
+    <message>
+        <source>Pen Color</source>
+        <translation>画笔颜色</translation>
+    </message>
+    <message>
+        <source>Pen Width</source>
+        <translation>画笔粗细</translation>
+    </message>
+    <message>
+        <source>Text Annotation</source>
+        <translation>文字标注</translation>
+    </message>
+    <message>
+        <source>Text Color</source>
+        <translation>文字颜色</translation>
+    </message>
+    <message>
+        <source>Font Size</source>
+        <translation>字体大小</translation>
     </message>
     <message>
         <source>Software x264 [H.264 / AVC]</source>

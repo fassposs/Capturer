@@ -118,6 +118,7 @@ target_include_directories(${PROJECT_NAME}
         src/widgets
         src/preview
         src/snipping
+        src/annotator
         src/player
         src/setting
         ${PROJECT_BINARY_DIR} # Generated header files
