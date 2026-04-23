@@ -175,15 +175,16 @@ EditingMenu::EditingMenu(QWidget *parent, const uint32_t groups)
         });
     }
     /////////////////////////////////////////////////////////////////////////////////
-    // if (groups & ADVANCED_GROUP) {
-    //     layout->addWidget(new Separator());
+    if (groups & ADVANCED_GROUP) {
+        layout->addWidget(new Separator());
 
-    //    auto scroll = new QCheckBox(this);
-    //    scroll->setCheckable(false);
-    //    scroll->setObjectName("scroll-btn");
-    //    connect(scroll, &QCheckBox::clicked, this, &EditingMenu::scroll);
-    //    layout->addWidget(scroll);
-    //}
+        auto scroll = new QCheckBox(this);
+        scroll->setCheckable(false);
+        scroll->setObjectName("scroll-btn");
+        scroll->setToolTip(tr("Scrolling Screenshot"));
+        connect(scroll, &QCheckBox::clicked, this, &EditingMenu::scroll);
+        layout->addWidget(scroll);
+    }
 
     /////////////////////////////////////////////////////////////////////////////////
     if (groups & REDO_UNDO_GROUP) {

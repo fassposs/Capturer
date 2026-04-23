@@ -8,6 +8,7 @@
 #include "logging.h"
 #include "message.h"
 #include "pdf-viewer.h"
+#include "scrollshot-reviewer.h"
 #include "settingdialog.h"
 #include "video-player.h"
 
@@ -77,6 +78,14 @@ Capturer::Capturer(int& argc, char **argv)
     connect(quicklook_hotkey_, &QHotkey::activated, this, &Capturer::QuickLook);
     connect(transparent_input_, &QHotkey::activated, this, &Capturer::TransparentPreviewInput);
     connect(sniper_.get(), &ScreenShoter::pinData, this, &Capturer::PreviewMimeData);
+
+    connect(sniper_.get(), &ScreenShoter::scrollShotReady, this, [this](const QPixmap& stitched) {
+        auto* reviewer = new ScrollShotReviewer(stitched);
+        connect(reviewer, &ScrollShotReviewer::pinData, this, &Capturer::PreviewMimeData);
+        connect(reviewer, &ScrollShotReviewer::saved, this,
+                [](const QString& path) { logi("long screenshot saved: {}", path.toStdString()); });
+        reviewer->show();
+    });
 
     // 教鞭快捷键：按住涂鸦，松开停止
     connect(annotate_draw_,  &QHotkey::activated,  this, &Capturer::AnnotateDrawPress);

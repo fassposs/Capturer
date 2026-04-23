@@ -5,13 +5,260 @@
 #include "config.h"
 #include "logging.h"
 
+#include <algorithm>
 #include <probe/system.h>
 #include <QApplication>
 #include <QDateTime>
 #include <QFileDialog>
+#include <QGuiApplication>
+#include <QHBoxLayout>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QScreen>
 #include <QShortcut>
+#include <QVBoxLayout>
+
+// ─── ScrollShotOverlay ────────────────────────────────────────────────────────
+
+ScrollShotOverlay::ScrollShotOverlay(const QRect &capture_rect, QWidget *parent)
+    : QWidget(parent)
+    , capture_rect_(capture_rect)
+    , logical_w_(capture_rect.width())
+{
+    setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_ShowWithoutActivating);
+
+    // 捕获区域边框提示：独立窗口，只画边框，不遮挡内容
+    border_hint_ = new QWidget(nullptr);
+    border_hint_->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
+                                  Qt::WindowTransparentForInput);
+    border_hint_->setAttribute(Qt::WA_TranslucentBackground);
+    border_hint_->setAttribute(Qt::WA_ShowWithoutActivating);
+    border_hint_->setAttribute(Qt::WA_DeleteOnClose);
+    border_hint_->setGeometry(capture_rect_.adjusted(-2, -2, 2, 2));
+    border_hint_->installEventFilter(this);
+
+    const auto layout = new QVBoxLayout(this);
+    layout->setContentsMargins(12, 8, 12, 8);
+    layout->setSpacing(6);
+
+    label_ = new QLabel(tr("已捕获 0 屏"), this);
+    label_->setAlignment(Qt::AlignCenter);
+    label_->setStyleSheet("color: white; font-size: 11pt; background: transparent;");
+    layout->addWidget(label_);
+
+    const auto btn_layout = new QHBoxLayout();
+    btn_layout->setSpacing(8);
+
+    cancel_btn_ = new QPushButton(tr("取消"), this);
+    cancel_btn_->setFixedHeight(28);
+    cancel_btn_->setStyleSheet(
+        "QPushButton { background: rgba(80,80,80,200); color: white; border: none;"
+        " border-radius: 4px; padding: 0 12px; }"
+        "QPushButton:hover { background: rgba(120,120,120,220); }");
+    connect(cancel_btn_, &QPushButton::clicked, this, &ScrollShotOverlay::onCancel);
+    btn_layout->addWidget(cancel_btn_);
+
+    finish_btn_ = new QPushButton(tr("完成"), this);
+    finish_btn_->setFixedHeight(28);
+    finish_btn_->setStyleSheet(
+        "QPushButton { background: rgba(64,158,255,200); color: white; border: none;"
+        " border-radius: 4px; padding: 0 12px; }"
+        "QPushButton:hover { background: rgba(64,158,255,240); }");
+    connect(finish_btn_, &QPushButton::clicked, this, &ScrollShotOverlay::onFinish);
+    btn_layout->addWidget(finish_btn_);
+
+    layout->addLayout(btn_layout);
+
+    adjustSize();
+
+    timer_ = new QTimer(this);
+    timer_->setInterval(TICK_MS);
+    connect(timer_, &QTimer::timeout, this, &ScrollShotOverlay::onTick);
+}
+
+void ScrollShotOverlay::start()
+{
+    positionSelf();
+    border_hint_->show();
+    show();
+    const auto first = captureFrame().toImage().convertToFormat(QImage::Format_RGB32);
+    last_frame_  = first;
+    stitched_    = QPixmap::fromImage(first);
+    frame_count_ = 1;
+    updateLabel();
+    timer_->start();
+}
+
+void ScrollShotOverlay::positionSelf()
+{
+    const auto *screen = QGuiApplication::primaryScreen();
+    const auto  sg     = screen->geometry();
+    const int   margin = 10;
+
+    int x = capture_rect_.right() - width() - margin;
+    int y = capture_rect_.bottom() + margin;
+    x     = std::clamp(x, sg.left() + margin, sg.right() - width() - margin);
+    y     = std::clamp(y, sg.top() + margin, sg.bottom() - height() - margin);
+    move(x, y);
+}
+
+QPixmap ScrollShotOverlay::captureFrame() const
+{
+    // grabWindow 在高DPI下返回物理像素的pixmap，需缩放回逻辑尺寸以确保拼接一致
+    auto *screen = QGuiApplication::primaryScreen();
+    QPixmap frame = screen->grabWindow(
+        0, capture_rect_.x(), capture_rect_.y(), capture_rect_.width(), capture_rect_.height());
+    const qreal dpr = frame.devicePixelRatio();
+    if (dpr > 1.0) {
+        frame = frame.scaled(capture_rect_.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        frame.setDevicePixelRatio(1.0);
+    }
+    return frame;
+}
+
+int ScrollShotOverlay::findOverlapOffset(const QImage &last, const QImage &curr) const
+{
+    const int w = last.width();
+    const int h = last.height();
+
+    if (h < STRIP_H * 2 || curr.height() < STRIP_H) return -1;
+
+    const int strip_y = h - STRIP_H;
+
+    const int samples_per_row = std::max(1, w / SAMPLE_STEP);
+    const int total_samples   = (STRIP_H / SAMPLE_STEP) * samples_per_row;
+    const int score_threshold = total_samples * 25 * 3;
+
+    int best_y     = -1;
+    int best_score = score_threshold;
+
+    const int search_end = curr.height() - STRIP_H;
+
+    for (int cy = 0; cy < search_end; cy += SAMPLE_STEP) {
+        int score = 0;
+        for (int sy = 0; sy < STRIP_H; sy += SAMPLE_STEP) {
+            const auto *last_line = reinterpret_cast<const QRgb *>(last.constScanLine(strip_y + sy));
+            const auto *curr_line = reinterpret_cast<const QRgb *>(curr.constScanLine(cy + sy));
+            for (int sx = 0; sx < w; sx += SAMPLE_STEP) {
+                const QRgb lp = last_line[sx];
+                const QRgb cp = curr_line[sx];
+                score += std::abs(qRed(lp) - qRed(cp)) + std::abs(qGreen(lp) - qGreen(cp)) +
+                         std::abs(qBlue(lp) - qBlue(cp));
+                if (score >= best_score) goto next_row;
+            }
+        }
+        best_score = score;
+        best_y     = cy;
+    next_row:;
+    }
+
+    if (best_y < 0) return -1;
+
+    // 滚动量不足，视为页面未移动
+    if ((strip_y - best_y) < MIN_SCROLL) return -1;
+
+    const int new_content_y = best_y + STRIP_H;
+    if (new_content_y >= curr.height()) return -1;
+
+    return new_content_y;
+}
+
+void ScrollShotOverlay::appendFrame(const QImage &curr, int offset)
+{
+    const int new_h   = curr.height() - offset;
+    const int total_h = stitched_.height() + new_h;
+
+    QPixmap combined(stitched_.width(), total_h);
+    combined.setDevicePixelRatio(1.0);
+    {
+        QPainter painter(&combined);
+        painter.drawPixmap(0, 0, stitched_);
+        painter.drawImage(0, stitched_.height(), curr, 0, offset, curr.width(), new_h);
+    }
+    stitched_ = combined;
+    ++frame_count_;
+}
+
+void ScrollShotOverlay::updateLabel()
+{
+    label_->setText(tr("已捕获 %1 屏").arg(frame_count_));
+}
+
+void ScrollShotOverlay::onTick()
+{
+    const auto frame = captureFrame().toImage().convertToFormat(QImage::Format_RGB32);
+
+    if (last_frame_.isNull()) {
+        last_frame_  = frame;
+        stitched_    = QPixmap::fromImage(frame);
+        frame_count_ = 1;
+        updateLabel();
+        return;
+    }
+
+    const int offset = findOverlapOffset(last_frame_, frame);
+    if (offset < 0) return;
+
+    appendFrame(frame, offset);
+    last_frame_ = frame;
+    updateLabel();
+
+    if (stitched_.height() >= MAX_HEIGHT) {
+        label_->setText(tr("已达上限，请点击完成"));
+        timer_->stop();
+    }
+}
+
+void ScrollShotOverlay::onFinish()
+{
+    timer_->stop();
+    border_hint_->close();
+    if (!stitched_.isNull()) emit finished(stitched_);
+    close();
+}
+
+void ScrollShotOverlay::onCancel()
+{
+    timer_->stop();
+    border_hint_->close();
+    emit cancelled();
+    close();
+}
+
+bool ScrollShotOverlay::eventFilter(QObject *obj, QEvent *event)
+{
+    if (obj == border_hint_ && event->type() == QEvent::Paint) {
+        QPainter painter(border_hint_);
+        painter.setRenderHint(QPainter::Antialiasing, false);
+        painter.setPen(QPen(QColor(24, 144, 255), 3, Qt::DashLine));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRect(border_hint_->rect().adjusted(1, 1, -1, -1));
+        return true;
+    }
+    return QWidget::eventFilter(obj, event);
+}
+
+void ScrollShotOverlay::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Escape)
+        onCancel();
+    else if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
+        onFinish();
+    QWidget::keyPressEvent(event);
+}
+
+void ScrollShotOverlay::paintEvent(QPaintEvent *)
+{
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setBrush(QColor(30, 30, 30, 210));
+    painter.setPen(Qt::NoPen);
+    painter.drawRoundedRect(rect(), 8, 8);
+}
+
+// ─── ScreenShoter ─────────────────────────────────────────────────────────────
 
 #ifdef Q_OS_LINUX
 #include <QDBusInterface>
@@ -60,7 +307,7 @@ ScreenShoter::ScreenShoter(QWidget *parent)
     });
 
     // TODO:
-    connect(menu_, &EditingMenu::scroll, []() {});
+    connect(menu_, &EditingMenu::scroll, this, &ScreenShoter::startScrollShot);
 
     connect(menu_, &EditingMenu::save, this, &ScreenShoter::save);
     connect(menu_, &EditingMenu::copy, this, &ScreenShoter::copy);
@@ -633,4 +880,41 @@ void ScreenShoter::registerShortcuts()
             exit();
         }
     });
+}
+
+void ScreenShoter::startScrollShot()
+{
+    if (selector_->status() < SelectorStatus::CAPTURED) return;
+    if (scroll_overlay_) return;
+
+    const auto capture_rect = selector_->selected(); // 绝对坐标
+
+    menu_->hide();
+    magnifier_->hide();
+    setWindowOpacity(0.0); // 透明化，不遮挡被截目标
+
+    scroll_overlay_ = new ScrollShotOverlay(capture_rect, nullptr);
+
+    connect(scroll_overlay_, &ScrollShotOverlay::finished, this, [this](const QPixmap &stitched) {
+        endScrollShot();
+        emit scrollShotReady(stitched);
+        exit();
+    });
+
+    connect(scroll_overlay_, &ScrollShotOverlay::cancelled, this, [this]() {
+        endScrollShot();
+        exit();
+    });
+
+    scroll_overlay_->start();
+}
+
+void ScreenShoter::endScrollShot()
+{
+    if (scroll_overlay_) {
+        scroll_overlay_->close();
+        scroll_overlay_->deleteLater();
+        scroll_overlay_ = nullptr;
+    }
+    setWindowOpacity(1.0);
 }

@@ -64,6 +64,10 @@
         <source>Open Image</source>
         <translation></translation>
     </message>
+    <message>
+        <source>Scrolling Screenshot</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ImageWindow</name>
@@ -186,6 +190,40 @@
     <message>
         <source>Save Image</source>
         <translation></translation>
+    </message>
+</context>
+<context>
+    <name>ScrollShotOverlay</name>
+    <message>
+        <source>已捕获 0 屏</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>取消</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>完成</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>已捕获 %1 屏</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>已达上限，请点击完成</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ScrollShotReviewer</name>
+    <message>
+        <source>长截图</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Image</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
