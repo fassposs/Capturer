@@ -126,9 +126,6 @@ ScrollShotReviewer::ScrollShotReviewer(const QPixmap& stitched, QWidget* parent)
     resize(init_w, init_h);
     move(sg.center() - QPoint{ init_w / 2, init_h / 2 });
 
-    // 缩放视图使长图刚好适应窗口
-    view_->fitInView(canvas_->sceneRect(), Qt::KeepAspectRatio);
-
     const auto layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(view_);
@@ -386,6 +383,8 @@ void ScrollShotReviewer::keyPressEvent(QKeyEvent* event)
 void ScrollShotReviewer::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);
+    // showEvent 时窗口已完成布局，view_ 尺寸已知，fitInView 能正确计算缩放比例
+    view_->fitInView(canvas_->sceneRect(), Qt::KeepAspectRatio);
     menu_->show();
     updateMenuPos();
 }

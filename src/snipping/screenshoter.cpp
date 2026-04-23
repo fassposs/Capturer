@@ -84,9 +84,9 @@ void ScrollShotOverlay::start()
     border_hint_->show();
     show();
     const auto first = captureFrame().toImage().convertToFormat(QImage::Format_RGB32);
-    last_frame_  = first;
-    stitched_    = QPixmap::fromImage(first);
-    frame_count_ = 1;
+    stitched_image_ = first;
+    stitched_       = QPixmap::fromImage(first);
+    frame_count_    = 1;
     updateLabel();
     timer_->start();
 }
@@ -120,12 +120,14 @@ QPixmap ScrollShotOverlay::captureFrame() const
 
 int ScrollShotOverlay::findOverlapOffset(const QImage &last, const QImage &curr) const
 {
+    // 在 last 的底部取参考条带，在 curr 中从顶向下搜索匹配位置
+    // 为应对快速滚动，允许在 curr 的【全高范围】内搜索（而不是仅到 height-STRIP_H）
     const int w = last.width();
     const int h = last.height();
 
     if (h < STRIP_H * 2 || curr.height() < STRIP_H) return -1;
 
-    const int strip_y = h - STRIP_H;
+    const int strip_y = h - STRIP_H; // 参考条带在 last 中的起始行
 
     const int samples_per_row = std::max(1, w / SAMPLE_STEP);
     const int total_samples   = (STRIP_H / SAMPLE_STEP) * samples_per_row;
@@ -134,9 +136,11 @@ int ScrollShotOverlay::findOverlapOffset(const QImage &last, const QImage &curr)
     int best_y     = -1;
     int best_score = score_threshold;
 
+    // 搜索终点：curr.height() - STRIP_H（至少保留 STRIP_H 行新内容）
+    // 为支持快速大幅滚动，从 cy=0 一路搜到末尾
     const int search_end = curr.height() - STRIP_H;
 
-    for (int cy = 0; cy < search_end; cy += SAMPLE_STEP) {
+    for (int cy = 0; cy <= search_end; cy += SAMPLE_STEP) {
         int score = 0;
         for (int sy = 0; sy < STRIP_H; sy += SAMPLE_STEP) {
             const auto *last_line = reinterpret_cast<const QRgb *>(last.constScanLine(strip_y + sy));
@@ -177,32 +181,36 @@ void ScrollShotOverlay::appendFrame(const QImage &curr, int offset)
         painter.drawPixmap(0, 0, stitched_);
         painter.drawImage(0, stitched_.height(), curr, 0, offset, curr.width(), new_h);
     }
-    stitched_ = combined;
+    stitched_       = combined;
+    stitched_image_ = combined.toImage().convertToFormat(QImage::Format_RGB32);
     ++frame_count_;
 }
 
 void ScrollShotOverlay::updateLabel()
 {
-    label_->setText(tr("已捕获 %1 屏").arg(frame_count_));
+    // 以「累计拼接高度 / 单帧高度」估算等效屏数
+    const int frame_h    = capture_rect_.height();
+    const int equivalent = frame_h > 0 ? (stitched_.height() + frame_h - 1) / frame_h : frame_count_;
+    label_->setText(tr("已捕获 %1 屏").arg(equivalent));
 }
 
 void ScrollShotOverlay::onTick()
 {
     const auto frame = captureFrame().toImage().convertToFormat(QImage::Format_RGB32);
 
-    if (last_frame_.isNull()) {
-        last_frame_  = frame;
-        stitched_    = QPixmap::fromImage(frame);
-        frame_count_ = 1;
+    // stitched_image_ 是已拼接内容的完整图像，用其底部条带与当前帧匹配
+    if (stitched_image_.isNull()) {
+        stitched_image_ = frame;
+        stitched_       = QPixmap::fromImage(frame);
+        frame_count_    = 1;
         updateLabel();
         return;
     }
 
-    const int offset = findOverlapOffset(last_frame_, frame);
+    const int offset = findOverlapOffset(stitched_image_, frame);
     if (offset < 0) return;
 
     appendFrame(frame, offset);
-    last_frame_ = frame;
     updateLabel();
 
     if (stitched_.height() >= MAX_HEIGHT) {

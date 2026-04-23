@@ -49,15 +49,15 @@ private:
     void    updateLabel();
     void    positionSelf();
 
-    static constexpr int TICK_MS     = 300;
+    static constexpr int TICK_MS     = 80;  // 缩短轮询间隔，减少快速滚动时的内容丢失
     static constexpr int STRIP_H     = 80;
     static constexpr int SAMPLE_STEP = 4;
     static constexpr int MAX_HEIGHT  = 16000;
-    static constexpr int MIN_SCROLL  = 8; // 低于此像素视为未滚动，忽略
+    static constexpr int MIN_SCROLL  = 4; // 低于此像素视为未滚动，忽略
 
     QRect        capture_rect_;
     QPixmap      stitched_;
-    QImage       last_frame_;
+    QImage       stitched_image_; // 与 stitched_ 同步的 QImage，供拼接匹配用
     int          frame_count_{ 0 };
     int          logical_w_{ 0 }; // 捕获区域逻辑像素宽，用于去除DPI缩放影响
 
