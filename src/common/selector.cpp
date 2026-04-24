@@ -508,6 +508,13 @@ void Selector::showRegion()
 
 void Selector::addClickAnimation(const QPoint& pos)
 {
+    constexpr size_t MAX_CLICK_ANIMATIONS = 50;  // 限制最大动画数量
+
+    // 如果动画数量超过限制，移除最旧的动画
+    if (clickAnimations_.size() >= MAX_CLICK_ANIMATIONS) {
+        clickAnimations_.erase(clickAnimations_.begin());
+    }
+
     ClickAnimation anim;
     anim.pos       = pos;
     anim.radius    = 5;

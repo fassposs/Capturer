@@ -169,7 +169,10 @@ int Decoder::open_video_stream(const int index)
         auto decoder = choose_decoder(vctx_.stream, vfi.hwaccel);
         if (vctx_.codec) avcodec_free_context(&vctx_.codec);
         if (vctx_.codec = avcodec_alloc_context3(decoder); !vctx_.codec) return -1;
-        if (avcodec_parameters_to_context(vctx_.codec, vctx_.stream->codecpar) < 0) return -1;
+        if (avcodec_parameters_to_context(vctx_.codec, vctx_.stream->codecpar) < 0) {
+            avcodec_free_context(&vctx_.codec);
+            return -1;
+        }
 
         if (vfi.hwaccel != AV_HWDEVICE_TYPE_NONE) {
             AVBufferRef *device_ctx = nullptr;
@@ -224,7 +227,10 @@ int Decoder::open_audio_stream(int index)
         actx_.stream = fmt_ctx_->streams[actx_.index];
         auto decoder = avcodec_find_decoder(actx_.stream->codecpar->codec_id);
         if (actx_.codec = avcodec_alloc_context3(decoder); !actx_.codec) return -1;
-        if (avcodec_parameters_to_context(actx_.codec, actx_.stream->codecpar) < 0) return -1;
+        if (avcodec_parameters_to_context(actx_.codec, actx_.stream->codecpar) < 0) {
+            avcodec_free_context(&actx_.codec);
+            return -1;
+        }
         if (avcodec_open2(actx_.codec, decoder, nullptr) < 0) {
             loge("[    DECODER] [A] can not open the audio decoder");
             return -1;
@@ -258,7 +264,10 @@ int Decoder::open_subtitle_stream(const int index)
         }
 
         if (sctx_.codec = avcodec_alloc_context3(decoder); !sctx_.codec) return -1;
-        if (avcodec_parameters_to_context(sctx_.codec, sctx_.stream->codecpar) < 0) return -1;
+        if (avcodec_parameters_to_context(sctx_.codec, sctx_.stream->codecpar) < 0) {
+            avcodec_free_context(&sctx_.codec);
+            return -1;
+        }
 
         sctx_.codec->pkt_timebase = sctx_.stream->time_base;
 
