@@ -195,23 +195,11 @@
 <context>
     <name>ScrollShotOverlay</name>
     <message>
-        <source>已捕获 0 屏</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>取消</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>完成</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>已捕获 %1 屏</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>已达上限，请点击完成</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -16,6 +16,7 @@
 #include <QResizeEvent>
 #include <QScreen>
 #include <QShortcut>
+#include <QTimer>
 #include <QWheelEvent>
 
 // ─── ReviewView ───────────────────────────────────────────────────────────────
@@ -115,7 +116,9 @@ ScrollShotReviewer::ScrollShotReviewer(const QPixmap& stitched, QWidget* parent)
     };
     review_view->on_release = [this]() { finishItem(); };
 
-    menu_ = new EditingMenu(this);
+    // 长截图审阅窗口不需要长截图按钮（ADVANCED_GROUP）
+    menu_ = new EditingMenu(this, EditingMenu::GRAPH_GROUP | EditingMenu::REDO_UNDO_GROUP |
+                                      EditingMenu::SAVE_GROUP | EditingMenu::EXIT_GROUP);
     menu_->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
 
     // 按画面比例初始化窗口大小：最大化到当前屏幕的 80%
@@ -126,8 +129,8 @@ ScrollShotReviewer::ScrollShotReviewer(const QPixmap& stitched, QWidget* parent)
     resize(init_w, init_h);
     move(sg.center() - QPoint{ init_w / 2, init_h / 2 });
 
-    // 缩放视图使长图刚好适应窗口
-    view_->fitInView(canvas_->sceneRect(), Qt::KeepAspectRatio);
+    // 注意：此时不要调用 fitInView，因为视图还未完成布局
+    // 延迟到 showEvent 中处理，确保视图大小正确
 
     const auto layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -235,9 +238,33 @@ void ScrollShotReviewer::syncDragMode()
 void ScrollShotReviewer::updateMenuPos()
 {
     if (!menu_->isVisible()) return;
-    const QRect va = view_->geometry();
-    const int   x  = va.left() + (va.width() - menu_->width()) / 2;
-    const int   y  = va.bottom() - menu_->height() - 8;
+
+    const QRect va        = view_->geometry();
+    const int   x         = va.left() + (va.width() - menu_->width()) / 2;
+    const int   margin    = 6;
+    const auto* screen    = QApplication::primaryScreen();
+    const QRect sg        = screen->availableGeometry();
+    const int   va_bottom = mapToGlobal(QPoint(0, va.bottom())).y();
+    const int   va_top    = mapToGlobal(QPoint(0, va.top())).y();
+
+    int y = 0;
+
+    // 优先放在预览区下边线下面（屏幕下方有足够空间）
+    if (va_bottom + menu_->height() + margin < sg.bottom()) {
+        y = va.bottom() + margin;
+        menu_->setSubMenuShowAbove(false);
+    }
+    // 其次放在预览区上边线上面（屏幕上方有足够空间）
+    else if (va_top - menu_->height() - margin > sg.top()) {
+        y = va.top() - menu_->height() - margin;
+        menu_->setSubMenuShowAbove(true);
+    }
+    // 否则放在下边线上面（在预览区内）
+    else {
+        y = va.bottom() - menu_->height() - margin;
+        menu_->setSubMenuShowAbove(true);
+    }
+
     menu_->move(mapToGlobal(QPoint{ x, y }));
 }
 
@@ -387,5 +414,13 @@ void ScrollShotReviewer::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);
     menu_->show();
-    updateMenuPos();
+
+    // 延迟调整视图缩放和菜单位置，确保所有控件已完成布局
+    // 使用单发定时器，在事件循环下一次迭代时执行
+    QTimer::singleShot(0, this, [this]() {
+        if (view_ && canvas_) {
+            view_->fitInView(canvas_->sceneRect(), Qt::KeepAspectRatio);
+        }
+        updateMenuPos();
+    });
 }

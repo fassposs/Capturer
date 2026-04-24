@@ -43,11 +43,6 @@ ScrollShotOverlay::ScrollShotOverlay(const QRect &capture_rect, QWidget *parent)
     layout->setContentsMargins(12, 8, 12, 8);
     layout->setSpacing(6);
 
-    label_ = new QLabel(tr("已捕获 0 屏"), this);
-    label_->setAlignment(Qt::AlignCenter);
-    label_->setStyleSheet("color: white; font-size: 11pt; background: transparent;");
-    layout->addWidget(label_);
-
     const auto btn_layout = new QHBoxLayout();
     btn_layout->setSpacing(8);
 
@@ -87,7 +82,6 @@ void ScrollShotOverlay::start()
     last_frame_  = first;
     stitched_    = QPixmap::fromImage(first);
     frame_count_ = 1;
-    updateLabel();
     timer_->start();
 }
 
@@ -181,10 +175,6 @@ void ScrollShotOverlay::appendFrame(const QImage &curr, int offset)
     ++frame_count_;
 }
 
-void ScrollShotOverlay::updateLabel()
-{
-    label_->setText(tr("已捕获 %1 屏").arg(frame_count_));
-}
 
 void ScrollShotOverlay::onTick()
 {
@@ -194,7 +184,6 @@ void ScrollShotOverlay::onTick()
         last_frame_  = frame;
         stitched_    = QPixmap::fromImage(frame);
         frame_count_ = 1;
-        updateLabel();
         return;
     }
 
@@ -203,10 +192,8 @@ void ScrollShotOverlay::onTick()
 
     appendFrame(frame, offset);
     last_frame_ = frame;
-    updateLabel();
 
     if (stitched_.height() >= MAX_HEIGHT) {
-        label_->setText(tr("已达上限，请点击完成"));
         timer_->stop();
     }
 }

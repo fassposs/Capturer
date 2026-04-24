@@ -49,7 +49,7 @@ private:
     void    updateLabel();
     void    positionSelf();
 
-    static constexpr int TICK_MS     = 300;
+    static constexpr int TICK_MS     = 100;
     static constexpr int STRIP_H     = 80;
     static constexpr int SAMPLE_STEP = 4;
     static constexpr int MAX_HEIGHT  = 16000;
@@ -62,7 +62,6 @@ private:
     int          logical_w_{ 0 }; // 捕获区域逻辑像素宽，用于去除DPI缩放影响
 
     QTimer      *timer_{};
-    QLabel      *label_{};
     QPushButton *finish_btn_{};
     QPushButton *cancel_btn_{};
     QWidget     *border_hint_{}; // 捕获区域边框提示窗口
